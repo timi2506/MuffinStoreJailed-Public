@@ -24,8 +24,13 @@ struct SafariWebView: UIViewControllerRepresentable {
 }
 
 func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
+    @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
+
     let path = ipaTool.downloadIPAForVersion(appId: appId, appVerId: versionId)
     print("IPA downloaded to \(path)")
+    withAnimation(.bouncy) {
+        downgradeProgress = 0.5
+    }
     
     let tempDir = FileManager.default.temporaryDirectory
     var contents = try! FileManager.default.contentsOfDirectory(atPath: path)
@@ -33,6 +38,9 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
     let destinationUrl = tempDir.appendingPathComponent("app.ipa")
     try! Zip.zipFiles(paths: contents.map { URL(fileURLWithPath: path).appendingPathComponent($0) }, zipFilePath: destinationUrl, password: nil, progress: nil)
     print("IPA zipped to \(destinationUrl)")
+    withAnimation(.bouncy) {
+        downgradeProgress = 0.8
+    }
     let path2 = URL(fileURLWithPath: path)
     var appDir = path2.appendingPathComponent("Payload")
     for file in try! FileManager.default.contentsOfDirectory(atPath: appDir.path) {
@@ -51,7 +59,9 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
 
     let finalURL = "https://api.palera.in/genPlist?bundleid=\(appBundleId)&name=\(appBundleId)&version=\(appVersion)&fetchurl=http://127.0.0.1:9090/signed.ipa"
     let installURL = "itms-services://?action=download-manifest&url=" + finalURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-    
+    withAnimation(.bouncy) {
+        downgradeProgress = 0.9
+    }
     DispatchQueue.global(qos: .background).async {
         let server = Server()
 
@@ -76,6 +86,9 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
         
         DispatchQueue.main.async {
             print("Requesting app install")
+            withAnimation(.bouncy) {
+                downgradeProgress = 1.0
+            }
             let majoriOSVersion = Int(UIDevice.current.systemVersion.components(separatedBy: ".").first!)!
             if majoriOSVersion >= 18 {
                 // iOS 18+ ( idk why this is needed but it seems to fix it for some people )
