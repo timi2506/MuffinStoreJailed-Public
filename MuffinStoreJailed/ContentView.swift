@@ -24,17 +24,21 @@ struct FooterView: View {
         HStack {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title)
+                .foregroundStyle(.red)
+
             
             VStack {
                 Text("WARNING: Use at your own risk")
+                    .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("I am not responsible for any damage, data loss, or any other issues caused by using this tool.")
                     .font(.caption)
+                    .foregroundStyle(.red.opacity(0.75))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                
             }
         }
-        .foregroundStyle(.red)
     }
 }
 
@@ -49,6 +53,8 @@ struct ContentView: View {
     @State var isDowngrading: Bool = false
     @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
     @State var DoneDisabled = true
+    @State var tfa_Prompt = false
+    @State var appStoreLinkPrompt = false
     
     @State var appLink: String = ""
 
@@ -70,17 +76,31 @@ struct ContentView: View {
                         SecureField("Password", text: $password)
                             .textContentType(.password)
                         VStack {
-                            TextField("2FA Code", text: $code)
-                                .textContentType(.oneTimeCode)
-                                .keyboardType(.numberPad)
                             HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.gray)
-                                Text("You WILL need to give a 2FA code to successfully log in.")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
+                                TextField("2FA Code", text: $code)
+                                    .textContentType(.oneTimeCode)
+                                    .keyboardType(.numberPad)
+                                Button(action: {
+                                    if isNumeric(UIPasteboard.general.string ?? "") {
+                                        code = UIPasteboard.general.string ?? ""
+                                    }
+                                    else {
+                                        tfa_Prompt = true
+                                    }
+                                }) {
+                                    Image(systemName: "document.on.clipboard")
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
+                                }
                             }
                         }
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                Text("You WILL need to give a 2FA code to successfully log in.")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.red.opacity(0.5))
+                            .padding(2.5)
                         
                         Button("Authenticate") {
                             if appleId.isEmpty || password.isEmpty {
@@ -101,6 +121,8 @@ struct ContentView: View {
                         
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(.gray.opacity(0.10))
                 .cornerRadius(15)
 
                
@@ -134,6 +156,10 @@ struct ContentView: View {
                             }
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(.gray.opacity(0.10))
+                    .cornerRadius(15)
+                    
                     VStack {
                         Button("Done (exit app)") {
                             exit(0) // scuffed
@@ -152,6 +178,14 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                Button("Paste App Store Link", systemImage: "document.on.clipboard") {
+                                    if UIPasteboard.general.string!.contains("apps.apple.com") {
+                                        // Contains apps.apple.com
+                                    }
+                                    else {
+                                        appStoreLinkPrompt = true
+                                    }
+                                }
                             }
                             Button("Downgrade") {
                                 if appLink.isEmpty {
@@ -191,13 +225,15 @@ struct ContentView: View {
 
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(.gray.opacity(0.10))
                     .cornerRadius(15)
                 }
             }
             Spacer()
             FooterView()
         }
-        .transition(.slide)
+        .transition(.scale)
         .animation(.bouncy)
         .padding()
         .onAppear {
@@ -222,6 +258,20 @@ struct ContentView: View {
                 EncryptedKeychainWrapper.generateAndStoreKey()
             }
         }
+        .alert(isPresented: $tfa_Prompt) {
+            Alert(title: Text("Are you sure this is a 2FA Code?"), message: Text("Your clipboard contents don't look like a 2FA code, are you sure you pasted the right thing? \n \n \(UIPasteboard.general.string ?? "ClipboardEmpty")"), primaryButton: .default(Text("Paste anyways"), action: {
+                code = UIPasteboard.general.string ?? ""
+            }), secondaryButton: .default(Text("Cancel")))
+        }
+        .alert(isPresented: $appStoreLinkPrompt) {
+            Alert(title: Text("Are you sure this is an App Store Link?"), message: Text("Your clipboard contents don't look like an App Store Link, are you sure you pasted the right thing? \n \n \(UIPasteboard.general.string ?? "ClipboardEmpty")"), primaryButton: .default(Text("Paste anyways"), action: {
+                appLink = UIPasteboard.general.string ?? ""
+            }), secondaryButton: .default(Text("Cancel")))
+        }
+    }
+    func isNumeric(_ code: String) -> Bool {
+        let numberSet = CharacterSet.decimalDigits
+        return code.unicodeScalars.allSatisfy { numberSet.contains($0) }
     }
 }
 
