@@ -53,8 +53,8 @@ struct ContentView: View {
     @State var isDowngrading: Bool = false
     @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
     @State var DoneDisabled = true
-    @State var tfa_Prompt = false
-    @State var appStoreLinkPrompt = false
+    @State var authError = false
+    @State var askAppLink = false
     
     @State var appLink: String = ""
 
@@ -75,23 +75,12 @@ struct ContentView: View {
                             .textContentType(.emailAddress)
                         SecureField("Password", text: $password)
                             .textContentType(.password)
+                            .textContentType(.password)
                         VStack {
                             HStack {
                                 TextField("2FA Code", text: $code)
                                     .textContentType(.oneTimeCode)
                                     .keyboardType(.numberPad)
-                                Button(action: {
-                                    if isNumeric(UIPasteboard.general.string ?? "") {
-                                        code = UIPasteboard.general.string ?? ""
-                                    }
-                                    else {
-                                        tfa_Prompt = true
-                                    }
-                                }) {
-                                    Image(systemName: "document.on.clipboard")
-                                        .font(.caption)
-                                        .foregroundStyle(.blue)
-                                }
                             }
                         }
                             HStack {
@@ -116,6 +105,14 @@ struct ContentView: View {
                             ipaTool = IPATool(appleId: appleId, password: finalPassword)
                             let ret = ipaTool?.authenticate()
                             isAuthenticated = ret ?? false
+                            if !isAuthenticated {
+                                authError = true
+                            }
+                        }
+                        if authError {
+                            Text("Something went wrong trying to sign in with your credentials, please check your Apple ID, Password and 2FA Code and try again!")
+                                .font(.caption)
+                                .foregroundStyle(.red)
                         }
                         
                         
@@ -130,13 +127,29 @@ struct ContentView: View {
                 if isDowngrading {
                     List {
                         Section("Please wait...") {
-                                ProgressView(value: downgradeProgress)
-                                    .progressViewStyle(LinearProgressViewStyle())
-                                    .onChange(of: downgradeProgress) { newValue in
-                                        if downgradeProgress == 1.0 {
-                                            DoneDisabled = false
+                            HStack {
+                                if downgradeProgress != 1.0 {
+                                    Text("\(String(format: "%.0f", downgradeProgress * 100))%")
+                                    ProgressView(value: downgradeProgress)
+                                        .progressViewStyle(LinearProgressViewStyle())
+                                        .onChange(of: downgradeProgress) { newValue in
+                                            if downgradeProgress == 1.0 {
+                                                DoneDisabled = false
+                                            }
                                         }
-                                    }
+                                }
+                                else {
+                                    Text("100%")
+                                        .foregroundStyle(.green)
+                                    ProgressView(value: downgradeProgress)
+                                        .progressViewStyle(LinearProgressViewStyle())
+                                        .foregroundStyle(.green)
+                                        .onAppear {
+                                                DoneDisabled = false
+                                        }
+                                }
+                                
+                            }
                             if downgradeProgress != 1.0 {
                                 Text("Please wait while the app is being downgraded.")
                                     .font(.headline)
@@ -161,11 +174,20 @@ struct ContentView: View {
                     .cornerRadius(15)
                     
                     VStack {
-                        Button("Done (exit app)") {
-                            exit(0) // scuffed
+                        if downgradeProgress == 1.0 {
+                            Button("Done (exit app)") {
+                                exit(0) // scuffed
+                            }
+                            .disabled(false)
+                            .padding()
                         }
-                        .disabled(DoneDisabled)
-                        .padding()
+                        else {
+                            Button("Done (exit app)") {
+                                exit(0) // scuffed
+                            }
+                            .disabled(true)
+                            .padding()
+                        }
                     }
                 } else {
                     List {
@@ -178,31 +200,31 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                Button("Paste App Store Link", systemImage: "document.on.clipboard") {
-                                    if UIPasteboard.general.string!.contains("apps.apple.com") {
-                                        // Contains apps.apple.com
-                                    }
-                                    else {
-                                        appStoreLinkPrompt = true
-                                    }
-                                }
                             }
                             Button("Downgrade") {
                                 if appLink.isEmpty {
                                     return
                                 }
-                                var appLinkParsed = appLink
-                                appLinkParsed = appLinkParsed.components(separatedBy: "id").last ?? ""
-                                for char in appLinkParsed {
-                                    if !char.isNumber {
-                                        appLinkParsed = String(appLinkParsed.prefix(upTo: appLinkParsed.firstIndex(of: char)!))
-                                        break
+                                else {
+                                    if appLink.contains("apple.com") {
+                                        isDowngrading = true
+                                        var appLinkParsed = appLink
+                                        appLinkParsed = appLinkParsed.components(separatedBy: "id").last ?? ""
+                                        for char in appLinkParsed {
+                                            if !char.isNumber {
+                                                appLinkParsed = String(appLinkParsed.prefix(upTo: appLinkParsed.firstIndex(of: char)!))
+                                                break
+                                            }
+                                        }
+                                        print("App ID: \(appLinkParsed)")
+                                        downgradeProgress = 0.1
+                                        downgradeApp(appId: appLinkParsed, ipaTool: ipaTool!)
+                                    }
+                                    else {
+                                        askAppLink = true
                                     }
                                 }
-                                print("App ID: \(appLinkParsed)")
-                                isDowngrading = true
-                                downgradeProgress = 0.1
-                                downgradeApp(appId: appLinkParsed, ipaTool: ipaTool!)
+                                
                             }
                         }
                         Section("Settings") {
@@ -233,6 +255,30 @@ struct ContentView: View {
             Spacer()
             FooterView()
         }
+        .alert(
+            "Are you sure you entered a valid App Store URL?", // Title
+            isPresented: $askAppLink, // Binding to show/hide the alert
+            presenting: appLink, // Data to present in the message
+            actions: { appLink in
+                Button("Yep!") {
+                    var appLinkParsed = appLink
+                    appLinkParsed = appLinkParsed.components(separatedBy: "id").last ?? ""
+                    for char in appLinkParsed {
+                        if !char.isNumber {
+                            appLinkParsed = String(appLinkParsed.prefix(upTo: appLinkParsed.firstIndex(of: char)!))
+                            break
+                        }
+                    }
+                    print("App ID: \(appLinkParsed)")
+                    downgradeProgress = 0.1
+                    downgradeApp(appId: appLinkParsed, ipaTool: ipaTool!)
+                }
+                Button("Nope", role: .cancel) {}
+            },
+            message: { appLink in
+                Text("The URL you entered is: \(appLink)")
+            }
+        )
         .transition(.scale)
         .animation(.bouncy)
         .padding()
@@ -257,16 +303,6 @@ struct ContentView: View {
                 print("No auth info found in keychain, setting up by generating a key in SEP")
                 EncryptedKeychainWrapper.generateAndStoreKey()
             }
-        }
-        .alert(isPresented: $tfa_Prompt) {
-            Alert(title: Text("Are you sure this is a 2FA Code?"), message: Text("Your clipboard contents don't look like a 2FA code, are you sure you pasted the right thing? \n \n \(UIPasteboard.general.string ?? "ClipboardEmpty")"), primaryButton: .default(Text("Paste anyways"), action: {
-                code = UIPasteboard.general.string ?? ""
-            }), secondaryButton: .default(Text("Cancel")))
-        }
-        .alert(isPresented: $appStoreLinkPrompt) {
-            Alert(title: Text("Are you sure this is an App Store Link?"), message: Text("Your clipboard contents don't look like an App Store Link, are you sure you pasted the right thing? \n \n \(UIPasteboard.general.string ?? "ClipboardEmpty")"), primaryButton: .default(Text("Paste anyways"), action: {
-                appLink = UIPasteboard.general.string ?? ""
-            }), secondaryButton: .default(Text("Cancel")))
         }
     }
     func isNumeric(_ code: String) -> Bool {

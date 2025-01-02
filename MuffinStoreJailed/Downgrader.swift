@@ -28,9 +28,6 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
 
     let path = ipaTool.downloadIPAForVersion(appId: appId, appVerId: versionId)
     print("IPA downloaded to \(path)")
-    withAnimation(.bouncy) {
-        downgradeProgress = 0.5
-    }
     
     let tempDir = FileManager.default.temporaryDirectory
     var contents = try! FileManager.default.contentsOfDirectory(atPath: path)
@@ -38,9 +35,7 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
     let destinationUrl = tempDir.appendingPathComponent("app.ipa")
     try! Zip.zipFiles(paths: contents.map { URL(fileURLWithPath: path).appendingPathComponent($0) }, zipFilePath: destinationUrl, password: nil, progress: nil)
     print("IPA zipped to \(destinationUrl)")
-    withAnimation(.bouncy) {
-        downgradeProgress = 0.8
-    }
+    
     let path2 = URL(fileURLWithPath: path)
     var appDir = path2.appendingPathComponent("Payload")
     for file in try! FileManager.default.contentsOfDirectory(atPath: appDir.path) {
@@ -59,14 +54,12 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
 
     let finalURL = "https://api.palera.in/genPlist?bundleid=\(appBundleId)&name=\(appBundleId)&version=\(appVersion)&fetchurl=http://127.0.0.1:9090/signed.ipa"
     let installURL = "itms-services://?action=download-manifest&url=" + finalURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-    withAnimation(.bouncy) {
-        downgradeProgress = 0.9
-    }
     DispatchQueue.global(qos: .background).async {
         let server = Server()
 
         server.route(.GET, "signed.ipa", { _ in
             print("Serving signed.ipa")
+
             let signedIPAData = try Data(contentsOf: destinationUrl)
             return HTTPResponse(body: signedIPAData)
         })
@@ -78,6 +71,7 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
                 window.location = "\(installURL)"
             </script>
             """
+            downgradeProgress = 1.0
             return HTTPResponse(.ok, headers: ["Content-Type": "text/html"], content: installPage)
         })
         
@@ -85,16 +79,16 @@ func downgradeAppToVersion(appId: String, versionId: String, ipaTool: IPATool) {
         print("Server has started listening")
         
         DispatchQueue.main.async {
+
             print("Requesting app install")
-            withAnimation(.bouncy) {
-                downgradeProgress = 1.0
-            }
             let majoriOSVersion = Int(UIDevice.current.systemVersion.components(separatedBy: ".").first!)!
             if majoriOSVersion >= 18 {
+
                 // iOS 18+ ( idk why this is needed but it seems to fix it for some people )
                 let safariView = SafariWebView(url: URL(string: "http://127.0.0.1:9090/install")!)
                 UIApplication.shared.windows.first?.rootViewController?.present(UIHostingController(rootView: safariView), animated: true, completion: nil)
             } else {
+
                 // iOS 17-
                 UIApplication.shared.open(URL(string: installURL)!)
             }
@@ -126,6 +120,8 @@ func showAlert(title: String, message: String) {
 }
 
 func getAllAppVersionIdsFromServer(appId: String, ipaTool: IPATool) {
+    @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
+
     let serverURL = "https://apis.bilin.eu.org/history/"
     let url = URL(string: "\(serverURL)\(appId)")!
     let request = URLRequest(url: url)
@@ -149,7 +145,10 @@ func getAllAppVersionIdsFromServer(appId: String, ipaTool: IPATool) {
             let alert = UIAlertController(title: "Select a version", message: "Select a version to downgrade to", preferredStyle: isiPad ? .alert : .actionSheet)
             for versionId in versionIds {
                 alert.addAction(UIAlertAction(title: "\(versionId["bundle_version"]!)", style: .default, handler: { _ in
+                    downgradeProgress = 0.35
+
                     downgradeAppToVersion(appId: appId, versionId: "\(versionId["external_identifier"]!)", ipaTool: ipaTool)
+
                 }))
             }
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
@@ -160,15 +159,21 @@ func getAllAppVersionIdsFromServer(appId: String, ipaTool: IPATool) {
 }
 
 func downgradeApp(appId: String, ipaTool: IPATool) {
+    @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
+
     let versionIds = ipaTool.getVersionIDList(appId: appId)
     var selectedVersion = ""
     let isiPad = UIDevice.current.userInterfaceIdiom == .pad
     
     let alert = UIAlertController(title: "Version ID", message: "Do you want to enter the version ID manually or request the list of version IDs from the server?", preferredStyle: isiPad ? .alert : .actionSheet)
     alert.addAction(UIAlertAction(title: "Manual", style: .default, handler: { _ in
+        downgradeProgress = 0.35
+
         promptForVersionId(appId: appId, versionIds: versionIds, ipaTool: ipaTool)
     }))
     alert.addAction(UIAlertAction(title: "Server", style: .default, handler: { _ in
+        downgradeProgress = 0.25
+
         getAllAppVersionIdsFromServer(appId: appId, ipaTool: ipaTool)
     }))
     alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))

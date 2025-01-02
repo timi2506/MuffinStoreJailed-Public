@@ -11,6 +11,7 @@
 import Foundation
 import CommonCrypto
 import Zip
+import SwiftUI
 
 extension Data {
     var hexString: String {
@@ -275,6 +276,7 @@ class StoreClient {
 }
 
 class IPATool {
+    @AppStorage("Downgrade Progress") var downgradeProgress = 0.1
     var session: URLSession
     var appleId: String
     var password: String
@@ -323,6 +325,7 @@ class IPATool {
         var downInfo = songList[0]
         var url = downInfo["URL"] as! String
         print("Got download URL: \(url)")
+
         var fm = FileManager.default
         var tempDir = fm.temporaryDirectory
         var path = tempDir.appendingPathComponent("app.ipa").path
@@ -361,6 +364,7 @@ class IPATool {
             }
         }
         print("Found app content dir: \(appContentDir)")
+
         var scManifestData = try! Data(contentsOf: unzipDirectory.appendingPathComponent(appContentDir).appendingPathComponent("SC_Info").appendingPathComponent("Manifest.plist"))
         var scManifest = try! PropertyListSerialization.propertyList(from: scManifestData, options: [], format: nil) as! [String: Any]
         var sinfsDict = downInfo["sinfs"] as! [[String: Any]]
@@ -369,6 +373,8 @@ class IPATool {
                 let sinfData = sinfsDict[i]["sinf"] as! Data
                 try! sinfData.write(to: unzipDirectory.appendingPathComponent(appContentDir).appendingPathComponent(sinfPath))
                 print("Wrote sinf to \(sinfPath)")
+                downgradeProgress = 0.5
+
             }
         } else {
             print("Manifest.plist does not exist! Assuming it is an old app without one...")
@@ -378,9 +384,13 @@ class IPATool {
             let sinfData = sinfsDict[0]["sinf"] as! Data
             try! sinfData.write(to: unzipDirectory.appendingPathComponent(sinfPath))
             print("Wrote sinf to \(sinfPath)")
+            downgradeProgress = 0.5
+
         }
         print("Downloaded IPA to \(unzipDirectory.path)")
+        downgradeProgress = 0.75
         return unzipDirectory.path
+
     }
 }
 
