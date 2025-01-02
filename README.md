@@ -1,5 +1,18 @@
-# MuffinStore Jailed
+# MuffinStore Jailed - Forked by timi2506
 
+## Features of this fork
+
+- All-new UI
+  
+## Preview of this fork
+
+
+
+https://github.com/user-attachments/assets/e2ed98e7-f568-431f-8b54-04e240ae5a15
+
+
+
+## Original Readme
 Hacked together on-device App Store client, view it more-so as a PoC than as a final tool.
 
 Publicizing because it could be useful for some people, however please use TrollStore MuffinStore over this if you can. This is not meant to be a final product, but it can be helpful for some people.
