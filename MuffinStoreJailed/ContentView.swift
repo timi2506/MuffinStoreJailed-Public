@@ -90,7 +90,6 @@ struct ContentView: View {
                             }
                             .foregroundStyle(.red.opacity(0.5))
                             .padding(2.5)
-                        
                         Button("Authenticate") {
                             if appleId.isEmpty || password.isEmpty {
                                 return
@@ -304,11 +303,49 @@ struct ContentView: View {
                 EncryptedKeychainWrapper.generateAndStoreKey()
             }
         }
+        .onOpenURL { url in
+            if url.absoluteString.contains("muffinstore") {
+                
+                print("Contains muffinstore: \(url.absoluteString)")
+                
+                let extractedBackHalf = url.absoluteString.replacingOccurrences(of: "muffinstore-jailed://", with: "")
+                
+                    print("Extracted Backhalf: \(String(extractedBackHalf.description))")
+                    
+                    if extractedBackHalf.contains("appLink?=") {
+                        print("The actual appLink?= backhalf: \(extractedBackHalf)")
+                        let incomingAppLink = extractedBackHalf.replacingOccurrences(of: "appLink?=", with: "")
+                        print("Incoming AppLink: \(incomingAppLink)")
+                        appLink = incomingAppLink
+                        print("AppLink changed to: \(appLink)")
+                    }
+                    else {
+                        print("Opened with \(url.absoluteString)")
+                        // Do further actions if no appLink
+                    }
+            }
+            else {
+                appLink = url.absoluteString
+            }
+        }
+        
+    }
+    private func extractPath(from url: URL) -> String? {
+        // Ensure the scheme matches your custom URL scheme
+        guard url.scheme == "muffinstore-jailed" else {
+            print("Invalid URL scheme")
+            return nil
+        }
+        
+        // Extract the path from the URL
+        return url.host // Returns "test" for "muffinstore-jailed://test"
     }
     func isNumeric(_ code: String) -> Bool {
         let numberSet = CharacterSet.decimalDigits
         return code.unicodeScalars.allSatisfy { numberSet.contains($0) }
     }
+        
+    
 }
 
 #Preview {
